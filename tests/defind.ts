@@ -10,25 +10,18 @@ describe("defind", () => {
 
   const program = anchor.workspace.Defind as Program<Defind>;
 
-  const counter = anchor.web3.Keypair.generate()
-
-  // const deposit_data = {
-  //     owner: provider.wallet.publicKey, //32
-  //     pub deposits: u64, //1
-  //     pub share: f32, //4
-  //     pub fund: Pubkey, //32
-  // }
+  //const counter = anchor.web3.Keypair.generate().publicKey;
 
   const fund = {
       name: "test",
   }
 
   const [fundPda] = anchor.web3.PublicKey.findProgramAddressSync(
-      [Buffer.from("fundaccount"), provider.wallet.publicKey.toBuffer()],
+      [Buffer.from(fund.name), provider.wallet.publicKey.toBuffer()],
       program.programId
   );
 
-  const [dataPda] = anchor.web3.PublicKey.findProgramAddressSync(
+  const [dataPda, bump] = anchor.web3.PublicKey.findProgramAddressSync(
       [Buffer.from("dataaccount"), provider.wallet.publicKey.toBuffer()],
       program.programId
   );
@@ -55,13 +48,14 @@ describe("defind", () => {
               fund: fundPda,
               user: provider.wallet.publicKey,
               data: dataPda,
+              //counter: counter,
               systemProgram: anchor.web3.SystemProgram.programId,
           })
           .rpc()
 
       console.log(dataPda.toBase58())
-      const account = await program.account.fund.fetch(dataPda)
-      expect(account.balance == new anchor.BN(1000000000))
+      const account = await program.account.depositData.fetch(dataPda)
+      expect(account.deposits == new anchor.BN(1000000000))
   })
 
   it("Is initialized!", async () => {})
