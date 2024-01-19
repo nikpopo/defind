@@ -97,7 +97,8 @@ pub mod defind {
         deposit_data.share = deposit_data.deposits as f32 / (**ctx.accounts.fund.to_account_info().try_borrow_mut_lamports()?) as f32;
 
         if deposit_data.share == 0.0 {
-            pub fn close(ctx: Context<Close>) -> Result<()> {
+            fn close(_ctx: Context<Close>) -> Result<()> {
+                msg!("Closing Data account");
                 Ok(())
             }
         }
@@ -107,12 +108,14 @@ pub mod defind {
 }
 
 #[derive(Accounts)]
+#[instruction(name:String)]
 pub struct Create<'info> {
     #[account(
         init,
         payer = user,
         space = 32 + 1 + 32 + 1,
-        seeds = [b"fundaccount", user.key().as_ref()], bump
+        seeds = [b"fundaccount", user.key().as_ref()],
+        bump
     )]
     pub fund: Account<'info, Fund>,
     #[account(mut)]
@@ -133,7 +136,7 @@ pub struct DepositData {
     pub owner: Pubkey, //32
     pub deposits: u64, //1
     pub share: f32, //4
-    pub fund: Pubkey, //
+    pub fund: Pubkey, //32
 }
 
 #[derive(Accounts)]
@@ -175,8 +178,14 @@ pub struct Withdraw<'info> {
 
 #[derive(Accounts)]
 pub struct Close<'info> {
-    #[account(mut, close = receiver)]
+    #[account(
+        mut,
+        seeds = [b"dataaccount", user.key().as_ref()],
+        bump,
+        close = user
+    )]
     pub data_account: Account<'info, DepositData>,
     #[account(mut)]
-    pub receiver: Signer<'info>
+    pub user: Signer<'info>,
+    pub system_program: Program<'info, System>
 }
