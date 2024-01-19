@@ -108,7 +108,12 @@ pub mod defind {
 
 #[derive(Accounts)]
 pub struct Create<'info> {
-    #[account{init, payer = user, space = 32 + 1 + 32 + 1, seeds = [b"fundaccount", user.key().as_ref()], bump}]
+    #[account(
+        init,
+        payer = user,
+        space = 32 + 1 + 32 + 1,
+        seeds = [b"fundaccount", user.key().as_ref()], bump
+    )]
     pub fund: Account<'info, Fund>,
     #[account(mut)]
     pub user: Signer<'info>,
@@ -128,7 +133,7 @@ pub struct DepositData {
     pub owner: Pubkey, //32
     pub deposits: u64, //1
     pub share: f32, //4
-    pub fund: Pubkey,
+    pub fund: Pubkey, //
 }
 
 #[derive(Accounts)]
@@ -143,7 +148,7 @@ pub struct Deposit<'info> {
         seeds = [b"dataaccount", user.key().as_ref()],
         bump,
         payer = user,
-        space = 32 + 1 + 4
+        space = 32 + 1 + 4 + 32
     )]
     pub data: Account<'info, DepositData>,
     pub system_program: Program<'info, System>
@@ -162,7 +167,7 @@ pub struct Withdraw<'info> {
     bump,
     realloc = 32 + 1 + 4,
     realloc::payer = user,
-    realloc::zero = true,
+    realloc::zero = true
     )]
     pub data: Account<'info, DepositData>,
     pub system_program: Program<'info, System>
