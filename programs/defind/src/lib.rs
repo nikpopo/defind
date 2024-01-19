@@ -8,77 +8,134 @@ pub mod defind {
     use super::*;
 
     pub fn create(ctx: Context<Create>, name: String) -> ProgramResult {
-        let bank = &mut ctx.accounts.bank;
-        bank.name = name;
-        bank.balance = 0;
-        bank.owner = *ctx.accounts.user.key;
+        let fund = &mut ctx.accounts.fund;
+
+        if !fund.name.is_empty() {
+            return Err(ProgramError::AccountAlreadyInitialized);
+        }
+
+        fund.name = name;
+        fund.balance = 0;
+        fund.initial_deposits = 0;
+        fund.owner = *ctx.accounts.user.key;
+
         Ok(())
     }
 
     pub fn deposit(ctx: Context<Deposit>, amount: u64) -> ProgramResult {
-        let txn = anchor_lang::solana_program::system_instruction::transfer(
-            &ctx.accounts.user.key(),
-            &ctx.accounts.bank.key(),
-            amount
-        );
-        anchor_lang::solana_program::program::invoke(
-            &txn,
-            &[
-                ctx.accounts.user.to_account_info(),
-                ctx.accounts.bank.to_account_info(),
-            ],
-        )?;
-        (&mut ctx.accounts.bank).balance += amount;
-        Ok(())
+        msg!("New Deposit found");
+        msg!("Amount: { }", amount);
+
+        let deposit_data = &mut ctx.accounts.data;
+        if deposit_data.deposits > 0 {
+
+            let txn = anchor_lang::solana_program::system_instruction::transfer(
+                &ctx.accounts.user.key(),
+                &ctx.accounts.fund.key(),
+                amount
+            );
+            anchor_lang::solana_program::program::invoke(
+                &txn,
+                &[
+                    ctx.accounts.user.to_account_info(),
+                    ctx.accounts.fund.to_account_info(),
+                ],
+            )?;
+            (&mut ctx.accounts.fund).initial_deposits += amount;
+
+            deposit_data.share = deposit_data.deposits as f32 / (**ctx.accounts.fund.to_account_info().try_borrow_mut_lamports()?) as f32;
+            deposit_data.deposits += amount;
+
+            Ok(())
+        } else {
+            deposit_data.owner = ctx.accounts.user.key();
+
+            let txn = anchor_lang::solana_program::system_instruction::transfer(
+                &ctx.accounts.user.key(),
+                &ctx.accounts.fund.key(),
+                amount
+            );
+            anchor_lang::solana_program::program::invoke(
+                &txn,
+                &[
+                    ctx.accounts.user.to_account_info(),
+                    ctx.accounts.fund.to_account_info(),
+                ],
+            )?;
+            (&mut ctx.accounts.fund).initial_deposits += amount;
+
+            deposit_data.share = deposit_data.deposits as f32 / (**ctx.accounts.fund.to_account_info().try_borrow_mut_lamports()?) as f32;
+            deposit_data.deposits = amount;
+
+            Ok(())
+        }
     }
 
     pub fn withdraw(ctx: Context<Withdraw>, amount: u64) -> ProgramResult {
-        let bank = &mut ctx.accounts.bank;
+        let fund = &mut ctx.accounts.fund;
         let user = &mut ctx.accounts.user;
 
-        if bank.owner != user.key() {
+        if fund.owner != user.key() {
             return Err(ProgramError::IncorrectProgramId);
         }
 
-        let rent = Rent::get()?.minimum_balance(bank.to_account_info().data_len());
-        if **bank.to_account_info().lamports.borrow() - rent < amount {
+        let rent = Rent::get()?.minimum_balance(fund.to_account_info().data_len());
+        if **fund.to_account_info().lamports.borrow() - rent < amount {
             return Err(ProgramError::InsufficientFunds);
         }
 
-        **bank.to_account_info().try_borrow_mut_lamports()? -= amount;
+        **fund.to_account_info().try_borrow_mut_lamports()? -= amount;
         **user.to_account_info().try_borrow_mut_lamports()? += amount;
         Ok(())
     }
 }
+
 #[derive(Accounts)]
 pub struct Create<'info> {
-    #[account{init, payer = user, space = 5000, seeds = [b"bankaccount", user.key().as_ref()], bump}]
-    pub bank: Account<'info, Bank>,
+    #[account{init, payer = user, space = 5000, seeds = [b"fundaccount", user.key().as_ref()], bump}]
+    pub fund: Account<'info, Fund>,
     #[account(mut)]
     pub user: Signer<'info>,
     pub system_program: Program<'info, System>
 }
 
 #[account]
-pub struct Bank {
+pub struct Fund {
     pub name: String,
     pub balance: u64,
-    pub owner: Pubkey
+    pub owner: Pubkey,
+    pub initial_deposits: u64,
+}
+
+#[account]
+pub struct DepositData {
+    pub owner: Pubkey, //32
+    pub deposits: u64, //1
+    pub share: f32, //4
 }
 
 #[derive(Accounts)]
+#[instruction()]
 pub struct Deposit<'info> {
     #[account(mut)]
-    pub bank: Account<'info, Bank>,
+    pub fund: Account<'info, Fund>,
     #[account(mut)]
     pub user: Signer<'info>,
+    #[account(
+        init,
+        seeds = [user.key().as_ref()],
+        bump,
+        payer = user,
+        space = 32 + 1 + 4
+    )]
+    pub data: Account<'info, DepositData>,
     pub system_program: Program<'info, System>
 }
 
 #[derive(Accounts)]
 pub struct Withdraw<'info> {
     #[account(mut)]
-    pub bank: Account<'info, Bank>,
+    pub fund: Account<'info, Fund>,
     #[account(mut)]
     pub user: Signer<'info>,
     pub system_program: Program<'info, System>
