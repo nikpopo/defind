@@ -11,6 +11,7 @@ pub mod defind {
         let fund = &mut ctx.accounts.fund;
 
         if !fund.name.is_empty() {
+            msg!("Fund already created");
             return Err(ProgramError::AccountAlreadyInitialized);
         }
 
@@ -26,8 +27,13 @@ pub mod defind {
         msg!("New Deposit found");
         msg!("Amount: { }", amount);
 
+        if amount == 0 {
+            return Err(ProgramError::InvalidArgument);
+        }
+
         let deposit_data = &mut ctx.accounts.data;
         deposit_data.fund = ctx.accounts.fund.key();
+        msg!("fund: { }", deposit_data.fund);
         if deposit_data.deposits != 0 {
 
             let txn = anchor_lang::solana_program::system_instruction::transfer(
@@ -39,17 +45,21 @@ pub mod defind {
                 &txn,
                 &[
                     ctx.accounts.user.to_account_info(),
-                    ctx.accounts.fund.to_account_info(),
+                    ctx.accounts.fund.to_account_info()
                 ],
             )?;
             (&mut ctx.accounts.fund).initial_deposits += amount;
+            (&mut ctx.accounts.fund).balance += amount;
 
             deposit_data.deposits += amount;
             deposit_data.share = (deposit_data.deposits as f32 / (**ctx.accounts.fund.to_account_info().try_borrow_mut_lamports()?) as f32) as f32;
 
+            msg!("Deposits: { }", deposit_data.deposits);
+            msg!("Share: { }", deposit_data.share);
             Ok(())
         } else {
             deposit_data.owner = ctx.accounts.user.key();
+            msg!("owner: {}", deposit_data.owner);
 
             let txn = anchor_lang::solana_program::system_instruction::transfer(
                 &ctx.accounts.user.key(),
@@ -64,10 +74,13 @@ pub mod defind {
                 ],
             )?;
             (&mut ctx.accounts.fund).initial_deposits += amount;
+            (&mut ctx.accounts.fund).balance += amount;
 
             deposit_data.deposits = amount;
             deposit_data.share = (deposit_data.deposits as f32 / (**ctx.accounts.fund.to_account_info().try_borrow_mut_lamports()?) as f32) as f32;
 
+            msg!("Deposits: { }", deposit_data.deposits);
+            msg!("Share: { }", deposit_data.share);
             Ok(())
         }
     }
@@ -151,7 +164,7 @@ pub struct Deposit<'info> {
         seeds = [b"dataaccount", user.key().as_ref()],
         bump,
         payer = user,
-        space = 32 + 1 + 4 + 32
+        space = 5000
     )]
     pub data: Account<'info, DepositData>,
     pub system_program: Program<'info, System>

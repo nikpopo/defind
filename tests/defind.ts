@@ -20,13 +20,18 @@ describe("defind", () => {
   // }
 
   const fund = {
-    name: "test",
+      name: "test",
   }
 
   const [fundPda] = anchor.web3.PublicKey.findProgramAddressSync(
       [Buffer.from("fundaccount"), provider.wallet.publicKey.toBuffer()],
       program.programId
-  )
+  );
+
+  const [dataPda] = anchor.web3.PublicKey.findProgramAddressSync(
+      [Buffer.from("dataaccount"), provider.wallet.publicKey.toBuffer()],
+      program.programId
+  );
 
   it("Bank created!", async  () => {
     const tx = await program.methods
@@ -38,8 +43,25 @@ describe("defind", () => {
         })
         .rpc()
 
-    const account = await program.account.fund.fetch(fundPda)
+    const account = await program.account.fund.fetch(fundPda);
+    console.log(fundPda)
     expect(fund.name == account.name)
+  });
+
+  it("Deposit successfully", async () => {
+      const tx = await program.methods
+          .deposit(new anchor.BN(1000000000))
+          .accounts({
+              fund: fundPda,
+              user: provider.wallet.publicKey,
+              data: dataPda,
+              systemProgram: anchor.web3.SystemProgram.programId,
+          })
+          .rpc()
+
+      console.log(dataPda.toBase58())
+      const account = await program.account.fund.fetch(dataPda)
+      expect(account.balance == new anchor.BN(1000000000))
   })
 
   it("Is initialized!", async () => {})
