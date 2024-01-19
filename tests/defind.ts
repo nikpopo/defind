@@ -13,4 +13,7 @@ describe("defind", () => {
   it("Is initialized!", async () => {})
 
   it("Incremented the count", async () => {})
+
+  it("Deposit successfully", async () => {
+  })
 });

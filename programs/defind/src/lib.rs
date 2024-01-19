@@ -27,7 +27,8 @@ pub mod defind {
         msg!("Amount: { }", amount);
 
         let deposit_data = &mut ctx.accounts.data;
-        if deposit_data.deposits > 0 {
+        deposit_data.fund = ctx.accounts.fund.key();
+        if deposit_data.deposits != 0 {
 
             let txn = anchor_lang::solana_program::system_instruction::transfer(
                 &ctx.accounts.user.key(),
@@ -43,8 +44,8 @@ pub mod defind {
             )?;
             (&mut ctx.accounts.fund).initial_deposits += amount;
 
-            deposit_data.share = deposit_data.deposits as f32 / (**ctx.accounts.fund.to_account_info().try_borrow_mut_lamports()?) as f32;
             deposit_data.deposits += amount;
+            deposit_data.share = (deposit_data.deposits as f32 / (**ctx.accounts.fund.to_account_info().try_borrow_mut_lamports()?) as f32) as f32;
 
             Ok(())
         } else {
@@ -64,8 +65,8 @@ pub mod defind {
             )?;
             (&mut ctx.accounts.fund).initial_deposits += amount;
 
-            deposit_data.share = deposit_data.deposits as f32 / (**ctx.accounts.fund.to_account_info().try_borrow_mut_lamports()?) as f32;
             deposit_data.deposits = amount;
+            deposit_data.share = (deposit_data.deposits as f32 / (**ctx.accounts.fund.to_account_info().try_borrow_mut_lamports()?) as f32) as f32;
 
             Ok(())
         }
@@ -74,25 +75,40 @@ pub mod defind {
     pub fn withdraw(ctx: Context<Withdraw>, amount: u64) -> ProgramResult {
         let fund = &mut ctx.accounts.fund;
         let user = &mut ctx.accounts.user;
+        let deposit_data = &mut ctx.accounts.data;
 
-        if fund.owner != user.key() {
+        if deposit_data.owner != user.key() {
             return Err(ProgramError::IncorrectProgramId);
         }
 
+        if deposit_data.fund != fund.key() {
+            return Err(ProgramError::IncorrectProgramId)
+        }
+
         let rent = Rent::get()?.minimum_balance(fund.to_account_info().data_len());
-        if **fund.to_account_info().lamports.borrow() - rent < amount {
+        if deposit_data.deposits - rent < amount {
             return Err(ProgramError::InsufficientFunds);
         }
 
         **fund.to_account_info().try_borrow_mut_lamports()? -= amount;
         **user.to_account_info().try_borrow_mut_lamports()? += amount;
+
+        deposit_data.deposits -= amount;
+        deposit_data.share = deposit_data.deposits as f32 / (**ctx.accounts.fund.to_account_info().try_borrow_mut_lamports()?) as f32;
+
+        if deposit_data.share == 0.0 {
+            pub fn close(ctx: Context<Close>) -> Result<()> {
+                Ok(())
+            }
+        }
+
         Ok(())
     }
 }
 
 #[derive(Accounts)]
 pub struct Create<'info> {
-    #[account{init, payer = user, space = 5000, seeds = [b"fundaccount", user.key().as_ref()], bump}]
+    #[account{init, payer = user, space = 32 + 1 + 32 + 1, seeds = [b"fundaccount", user.key().as_ref()], bump}]
     pub fund: Account<'info, Fund>,
     #[account(mut)]
     pub user: Signer<'info>,
@@ -112,6 +128,7 @@ pub struct DepositData {
     pub owner: Pubkey, //32
     pub deposits: u64, //1
     pub share: f32, //4
+    pub fund: Pubkey,
 }
 
 #[derive(Accounts)]
@@ -123,7 +140,7 @@ pub struct Deposit<'info> {
     pub user: Signer<'info>,
     #[account(
         init,
-        seeds = [user.key().as_ref()],
+        seeds = [b"dataaccount", user.key().as_ref()],
         bump,
         payer = user,
         space = 32 + 1 + 4
@@ -133,10 +150,28 @@ pub struct Deposit<'info> {
 }
 
 #[derive(Accounts)]
+#[instruction()]
 pub struct Withdraw<'info> {
     #[account(mut)]
     pub fund: Account<'info, Fund>,
     #[account(mut)]
     pub user: Signer<'info>,
+    #[account(
+    mut,
+    seeds = [b"dataaccount", user.key().as_ref()],
+    bump,
+    realloc = 32 + 1 + 4,
+    realloc::payer = user,
+    realloc::zero = true,
+    )]
+    pub data: Account<'info, DepositData>,
     pub system_program: Program<'info, System>
+}
+
+#[derive(Accounts)]
+pub struct Close<'info> {
+    #[account(mut, close = receiver)]
+    pub data_account: Account<'info, DepositData>,
+    #[account(mut)]
+    pub receiver: Signer<'info>
 }
