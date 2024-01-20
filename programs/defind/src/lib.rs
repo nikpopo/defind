@@ -197,14 +197,12 @@ pub struct Deposit<'info> {
     pub user: Signer<'info>,
     #[account(
         init,
-        seeds = [b"dataaccount", user.key().as_ref()],
+        seeds = [b"datapda", user.key().as_ref()],
         bump,
         payer = user,
         space = 100
     )]
     pub data: Account<'info, DepositData>,
-    //#[account(mut)]
-    //pub counter: Account<'info, Counter>,
     pub system_program: Program<'info, System>
 }
 
@@ -216,12 +214,12 @@ pub struct Withdraw<'info> {
     #[account(mut)]
     pub user: Signer<'info>,
     #[account(
-    mut,
-    seeds = [b"dataaccount", user.key().as_ref()],
-    bump,
-    realloc = 32 + 1 + 4,
-    realloc::payer = user,
-    realloc::zero = true
+        mut,
+        seeds = [b"datapda", user.key().as_ref()],
+        bump,
+        realloc = 100,
+        realloc::payer = user,
+        realloc::zero = true
     )]
     pub data: Account<'info, DepositData>,
     pub system_program: Program<'info, System>
@@ -231,7 +229,7 @@ pub struct Withdraw<'info> {
 pub struct Close<'info> {
     #[account(
         mut,
-        seeds = [b"dataaccount", user.key().as_ref()],
+        seeds = [b"Close", user.key().as_ref()],
         bump,
         close = user
     )]

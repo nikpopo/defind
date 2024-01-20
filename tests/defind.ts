@@ -21,8 +21,8 @@ describe("defind", () => {
       program.programId
   );
 
-  const [dataPda, bump] = anchor.web3.PublicKey.findProgramAddressSync(
-      [Buffer.from("dataaccount"), provider.wallet.publicKey.toBuffer()],
+  const [dataPda] = anchor.web3.PublicKey.findProgramAddressSync(
+      [Buffer.from("datapda"), provider.wallet.publicKey.toBuffer()],
       program.programId
   );
 
@@ -42,8 +42,12 @@ describe("defind", () => {
   });
 
   it("Deposit successfully", async () => {
+      //const accountDataBefore = await program.account.depositData.fetch(dataPda)
+      const depAmount = new anchor.BN(1000000000)
+      // const depU64 = 1000000000
+
       const tx = await program.methods
-          .deposit(new anchor.BN(1000000000))
+          .deposit(depAmount)
           .accounts({
               fund: fundPda,
               user: provider.wallet.publicKey,
@@ -53,10 +57,32 @@ describe("defind", () => {
           })
           .rpc()
 
-      console.log(dataPda.toBase58())
-      const account = await program.account.depositData.fetch(dataPda)
-      expect(account.deposits == new anchor.BN(1000000000))
-  })
+      console.log("deposit tx: " + dataPda.toBase58())
+      const accountData = await program.account.depositData.fetch(dataPda)
+      const accountFund = await program.account.fund.fetch(fundPda)
+      //expect(accountData.deposits == depAmount.add(accountDataBefore.deposits))
+  });
+
+  // it("Withdrawal successfully", async () => {
+  //     //const accountDataBefore = await program.account.depositData.fetch(dataPda)
+  //     const withdrawalAmount = new anchor.BN(10000)
+  //     // const depU64 = 1000000000
+  //
+  //     const tx = await program.methods
+  //         .withdraw(withdrawalAmount)
+  //         .accounts({
+  //             fund: fundPda,
+  //             user: provider.wallet.publicKey,
+  //             data: dataPda,
+  //             //counter: counter,
+  //             systemProgram: anchor.web3.SystemProgram.programId,
+  //         })
+  //         .rpc()
+  //
+  //     console.log("withdrawal tx: " + dataPda.toBase58())
+  //     const accountData = await program.account.depositData.fetch(dataPda)
+  //     expect(accountData.deposits == withdrawalAmount)
+  // })
 
   it("Is initialized!", async () => {})
   //
